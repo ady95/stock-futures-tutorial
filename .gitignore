@@ -12,6 +12,9 @@ models/
 runs/
 tensorboard/
 
+# ì‹¤í–‰ ê²°ê³¼ (ê·¸ëž˜í”„ ë“±)
+results/
+
 # Python
 __pycache__/
 *.pyc
@@ -25,6 +28,3 @@ venv/
 .idea/
 .DS_Store
 Thumbs.db
-
-# ½ÇÇà °á°ú (±×·¡ÇÁ µî)
-results/
