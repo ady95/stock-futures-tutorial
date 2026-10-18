@@ -1,0 +1,10 @@
+# 07-4·07-5: R2(행동 6 = 전체 청산) + 독립 위험관리 엔진 + MaskablePPO, 페널티는 ch07_all 과 같음
+name: ch07_r2_risk
+mode: R2
+algo: maskable
+data: {root: data/synthetic, synthetic: true, train: [2020, 2023], test: [2024, 2025]}
+reward: {scale: 100.0, lam_dd: 0.5, lam_margin: 20.0, margin_threshold: 0.15, lam_turnover: 0.05}
+risk: {max_margin_use: 0.40, stop_loss: 0.06, flatten_on_stop: true}
+ppo: {learning_rate: 0.0003, n_steps: 1024, batch_size: 256, n_epochs: 10, gamma: 0.99,
+      gae_lambda: 0.95, clip_range: 0.2, ent_coef: 0.01, net_arch: [64, 64]}
+train: {total_timesteps: 200000, eval_every: 10000, seeds: [0, 1, 2]}

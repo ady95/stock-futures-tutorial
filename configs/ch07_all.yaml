@@ -1,0 +1,8 @@
+# 07-3: 낙폭 + 증거금 + 포지션 변경 페널티(λ3 = 0.05)
+name: ch07_all
+mode: R1
+data: {root: data/synthetic, synthetic: true, train: [2020, 2023], test: [2024, 2025]}
+reward: {scale: 100.0, lam_dd: 0.5, lam_margin: 20.0, margin_threshold: 0.15, lam_turnover: 0.05}
+ppo: {learning_rate: 0.0003, n_steps: 1024, batch_size: 256, n_epochs: 10, gamma: 0.99,
+      gae_lambda: 0.95, clip_range: 0.2, ent_coef: 0.01, net_arch: [64, 64]}
+train: {total_timesteps: 200000, eval_every: 10000, seeds: [0, 1, 2]}

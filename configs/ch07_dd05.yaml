@@ -1,0 +1,8 @@
+# 07-1: 낙폭 증가 페널티 λ1 = 0.5
+name: ch07_dd05
+mode: R1
+data: {root: data/synthetic, synthetic: true, train: [2020, 2023], test: [2024, 2025]}
+reward: {scale: 100.0, lam_dd: 0.5}
+ppo: {learning_rate: 0.0003, n_steps: 1024, batch_size: 256, n_epochs: 10, gamma: 0.99,
+      gae_lambda: 0.95, clip_range: 0.2, ent_coef: 0.01, net_arch: [64, 64]}
+train: {total_timesteps: 200000, eval_every: 10000, seeds: [0, 1, 2]}

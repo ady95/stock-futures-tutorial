@@ -1,0 +1,27 @@
+# 6장 기본 실험: 합성 데이터, 순자산 기반 보상(페널티 없음), 행동 0~5 (R1)
+name: ppo_r1_synthetic
+mode: R1
+data:
+  root: data/synthetic
+  synthetic: true
+  train: [2020, 2023]     # 학습 에피소드 연도 범위
+  test: [2024, 2025]      # 평가 에피소드 연도 범위 (학습에 쓰지 않음)
+reward:
+  scale: 100.0
+  lam_dd: 0.0
+  lam_margin: 0.0
+  lam_turnover: 0.0
+ppo:
+  learning_rate: 0.0003
+  n_steps: 1024
+  batch_size: 256
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  net_arch: [64, 64]
+train:
+  total_timesteps: 200000
+  eval_every: 10000       # 이 스텝마다 학습·평가 구간 성과 기록 (06-4 학습 곡선)
+  seeds: [0, 1, 2]
