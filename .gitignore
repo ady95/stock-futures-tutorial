@@ -2,9 +2,10 @@
 .env
 .env.*
 !.env.example
+.kis/
 
 # ë°ì´í„°Â·í•™ìŠµ ì‚°ì¶œë¬¼ (ì›ë³¸ ì‹œì¥ ë°ì´í„°ëŠ” ì¬ë°°í¬ ê¸ˆì§€)
-data/raw/
+data/
 *.parquet
 *.csv
 models/
@@ -24,3 +25,6 @@ venv/
 .idea/
 .DS_Store
 Thumbs.db
+
+# ½ÇÇà °á°ú (±×·¡ÇÁ µî)
+results/

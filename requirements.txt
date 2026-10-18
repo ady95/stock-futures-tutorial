@@ -1,0 +1,15 @@
+# 「강화학습 기반 선물 자동매매 따라하기」 예제 코드 의존성
+# 저자가 실측한 조합 (Python 3.10.18, Windows 11, CPU 전용, 2026-10-19). 03-1 참고
+requests==2.34.2
+pandas==2.3.3
+pyarrow==25.0.1
+numpy==2.2.6
+matplotlib==3.10.9
+gymnasium==1.4.0
+stable-baselines3==2.9.0
+sb3-contrib==2.9.0
+torch==2.14.1
+tensorboard==2.21.0
+streamlit==1.65.0
+PyYAML==6.0.3
+pytest==9.1.1
