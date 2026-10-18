@@ -15,6 +15,10 @@ tensorboard/
 # 실행 결과 (그래프 등)
 results/
 
+# 모의운영 기록 (9~10장)
+live/
+live_*/
+
 # Python
 __pycache__/
 *.pyc

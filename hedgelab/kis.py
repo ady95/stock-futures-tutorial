@@ -21,6 +21,7 @@ DOMAINS = {
 MIN_INTERVAL = {"paper": 1.1, "real": 0.1}
 MASTER_URL = "https://new.real.download.dws.co.kr/common/master/fo_idx_code_mts.mst.zip"
 
+PRICE_PATH = "/uapi/domestic-futureoption/v1/quotations/inquire-price"
 DAILY_PATH = "/uapi/domestic-futureoption/v1/quotations/inquire-daily-fuopchartprice"
 MINUTE_PATH = "/uapi/domestic-futureoption/v1/quotations/inquire-time-fuopchartprice"
 
@@ -99,6 +100,11 @@ class KISClient:
         raise KISError(f"{tr_id} 실패: {body.get('msg_cd')} {body.get('msg1', '').strip()}")
 
     # ---------------------------------------------------------------- 시세
+    def price(self, code):
+        """현재가 (9장). 모의투자 도메인에서도 동작한다. output1 dict 를 그대로 돌려준다."""
+        body = self.get(PRICE_PATH, "FHMIF10000000", {"FID_COND_MRKT_DIV_CODE": "F", "FID_INPUT_ISCD": code})
+        return body.get("output1") or {}
+
     def daily(self, code, start, end=None):
         """일봉. start/end 는 'YYYYMMDD'. 100건 제한을 넘으면 종료일을 당기며 이어 받는다.
 
