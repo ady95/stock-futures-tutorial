@@ -1,0 +1,26 @@
+# 비밀 정보
+.env
+.env.*
+!.env.example
+
+# 데이터·학습 산출물 (원본 시장 데이터는 재배포 금지)
+data/raw/
+*.parquet
+*.csv
+models/
+runs/
+tensorboard/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# 에디터·OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
