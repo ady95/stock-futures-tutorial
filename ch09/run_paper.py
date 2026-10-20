@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from hedgelab.contracts import expiry  # noqa: E402
 from hedgelab.kis import KISClient  # noqa: E402
-from hedgelab.live import PaperBook, check_quote, current_pair, fetch_history, pair_codes, run_once  # noqa: E402
+from hedgelab.live import PaperBook, current_pair, fetch_history, pair_codes, quote_problem, run_once  # noqa: E402
 from hedgelab.rl import load_config, model_class, predict  # noqa: E402
 
 ap = argparse.ArgumentParser()
@@ -69,17 +69,19 @@ if args.replay:
     quotes = {"reg_bar": (bar.close, bar.high, bar.low),
               "a": full["a"].close.get(pd.Timestamp(today)), "b": full["b"].close.get(pd.Timestamp(today))}
 else:
-    q_reg = client.price(codes["reg"])
-    q_b = client.price(codes["b"])
-    q_a = client.price(codes["a"]) if today <= a_exp else {}
-    problems = [check_quote(q_reg, hist["reg"].close.iloc[-1]), check_quote(q_b, hist["b"].close.iloc[-1])]
-    if today <= a_exp:
-        problems.append(check_quote(q_a, hist["a"].close.iloc[-1]))
-    blocked = next((p for p in problems if p), None)
-    quotes = {"reg_bar": (float(q_reg.get("futs_prpr") or 0), float(q_reg.get("futs_hgpr") or 0),
-                          float(q_reg.get("futs_lwpr") or 0)),
-              "a": float(q_a["futs_prpr"]) if q_a.get("futs_prpr") else None,
-              "b": float(q_b.get("futs_prpr") or 0), "blocked": blocked}
+    raw = {"reg": client.price(codes["reg"]), "b": client.price(codes["b"]),
+           "a": client.price(codes["a"]) if today <= a_exp else {}}
+    prev = {k: (v.close.iloc[-1] if len(v) else None) for k, v in hist.items()}
+    # 그날 실제로 쓰는 월물만 검사한다: 정규 항상, 미니 a 는 만기일까지, 미니 b 는 a 만기일부터
+    blocked = quote_problem(today, a_exp, raw, prev)
+
+    def px(q, key="futs_prpr"):
+        return float(q[key]) if q and float(q.get(key) or 0) > 0 else None
+
+    # 정규 현재가가 없으면(차단되는 날) 관측·평가가 깨지지 않도록 전일 종가로 대신한다
+    reg_now = px(raw["reg"]) or prev["reg"]
+    quotes = {"reg_bar": (reg_now, px(raw["reg"], "futs_hgpr") or reg_now, px(raw["reg"], "futs_lwpr") or reg_now),
+              "a": px(raw["a"]), "b": px(raw["b"]), "blocked": blocked}
 quotes["codes"] = codes
 
 rec = run_once(model, cfg, hist, today, quotes, a_exp, reg_exp, book, predict,

@@ -78,6 +78,25 @@ def check_quote(q, prev_close, max_move=0.15):
     return None
 
 
+def quote_problem(today, a_exp, quotes_raw, prev_close):
+    """그날 실제로 쓰는 월물의 시세만 검사해 첫 문제를 돌려준다. 문제가 없으면 None.
+
+    정규는 항상, 미니 a 는 만기일까지(매도 다리), 미니 b 는 a 만기일부터(롤오버·매도 다리) 검사한다.
+    quotes_raw, prev_close: {"reg": ..., "a": ..., "b": ...}
+    """
+    need = ["reg"]
+    if today <= a_exp:
+        need.append("a")
+    if today >= a_exp:
+        need.append("b")
+    names = {"reg": "정규", "a": "미니 a", "b": "미니 b"}
+    for k in need:
+        problem = check_quote(quotes_raw.get(k), prev_close.get(k))
+        if problem:
+            return f"{names[k]} {problem}"
+    return None
+
+
 # ---------------------------------------------------------------- 운영 상태
 class PaperBook:
     """결정·주문 기록 (live/<에피소드>/ 아래 JSON Lines)."""
@@ -123,16 +142,28 @@ def run_once(model, cfg, hist, today, quotes, a_exp, reg_exp, book, predict, kil
         return {**logged[key_today], "note": "오늘 결정이 이미 있음 — 다시 주문하지 않음"}   # 같은 날 두 번 실행 방지
     today_i = ep.index.get_loc(pd.Timestamp(today))
 
-    # 지난 날들: 기록된 결정을 다시 넣는다. 기록이 없는 날(운영 시작 전)은 모델의 결정으로 채운다(백필)
+    # 지난 날들을 세 가지로 나눠 재현한다 (2026-10-21 검수 반영)
+    #   1) 기록이 있는 날      → 기록된 최종 포지션을 그대로 실행 (위험관리 엔진이 다시 고치지 않음)
+    #   2) 운영 시작 전의 날   → 모델의 결정으로 백필 (backfill)
+    #   3) 운영 중 빠진 날     → 주문이 없었으므로 직전 포지션 유지 (missed)
+    op_days = sorted(k for k, d in logged.items() if d.get("source") in ("live", "replay"))
+    first_op = op_days[0] if op_days else None
     for t in range(today_i):
         key = ep.index[t].strftime("%Y-%m-%d")
-        backfill = key not in logged
-        action = int(predict(model, env, obs)) if backfill else target_to_action(tuple(logged[key]["final"]), env.mode)
-        obs, _, _, _, _ = env.step(action)
-        if backfill:
+        if key in logged:
+            obs, _, _, _, _ = env.step(None, forced=tuple(logged[key]["final"]))
+        elif first_op is None or key < first_op:
+            action = int(predict(model, env, obs))
+            obs, _, _, _, _ = env.step(action)
             rec = env.sim.records[t]                       # 위험관리 엔진까지 거친 실제 포지션
             book.append(book.decisions_path, {"date": key, "source": "backfill", "action": action,
                                               "final": [int(rec["n_reg"]), int(rec["h"])]})
+        else:
+            hold = (env.sim.n_reg, env.sim.h)              # 미니 a 만기일이면 결제가 반영된 뒤의 포지션
+            obs, _, _, _, _ = env.step(None, forced=hold)
+            book.append(book.decisions_path, {"date": key, "source": "missed", "action": None,
+                                              "final": [int(hold[0]), int(hold[1])],
+                                              "note": "운영 누락일 — 주문 없음, 직전 포지션 유지"})
 
     # 오늘
     sim = env.sim
@@ -208,9 +239,15 @@ def ledger_from_decisions(data_root, year, month, decisions, equity0=50_000_000)
     codes = pair_codes(year, month)
     full = {k: load_daily(data_root, c) for k, c in codes.items()}
     if any(v is None for v in full.values()):
-        raise FileNotFoundError(f"{data_root}/daily 에 {list(codes.values())} 일봉이 필요합니다 (ch03/collect_real.py)")
+        raise LedgerDataMissing(f"{data_root}/daily 에 {list(codes.values())} 일봉이 필요합니다 "
+                                f"(python ch03/collect_real.py {year} {year})")
     dates = sorted(decisions)
     last = pd.Timestamp(dates[-1])
+    if last not in full["reg"].index:
+        # 2026-10-21 검수: 최신 결정일의 일봉이 없으면 KeyError 로 멈추던 문제 → 원인을 알려 주는 오류로
+        raise LedgerDataMissing(
+            f"최근 결정일 {last:%Y-%m-%d} 의 일봉이 {data_root}/daily/{codes['reg']}.parquet 에 없습니다. "
+            f"장 마감 후 일봉을 갱신하세요: python ch03/collect_real.py {year} {year}")
     a_exp = full["a"].index.max() if full["a"].index.max() < last else pd.Timestamp(expiry(year, month - 1))
     reg_exp = pd.Timestamp(expiry(year, month))
     hist = {k: v[v.index < last] for k, v in full.items()}
@@ -219,10 +256,12 @@ def ledger_from_decisions(data_root, year, month, decisions, equity0=50_000_000)
     ep = build_live_episode(hist, last.date(), quotes, a_exp.date(), reg_exp.date())
     ep.attrs.update(year=year, month=month)
     sim = EpisodeSim(ep, equity0)
-    final = (0, 0)
     for t in range(ep.index.get_loc(last)):
         key = ep.index[t].strftime("%Y-%m-%d")
-        if key in decisions:
-            final = tuple(decisions[key]["final"])
-        sim.act(*final)
+        # 기록이 없는 날은 주문이 없었던 날 → 현재 포지션 유지 (run_once 의 missed 와 같은 규칙)
+        sim.act(*(tuple(decisions[key]["final"]) if key in decisions else (sim.n_reg, sim.h)))
     return sim.frame(), sim.marked_equity
+
+
+class LedgerDataMissing(FileNotFoundError):
+    """장부 계산에 필요한 일봉이 없을 때 (10장 대시보드가 안내 메시지로 보여 준다)."""

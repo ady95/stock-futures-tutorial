@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from hedgelab import MINI_MULT, REG_MULT  # noqa: E402
 from hedgelab.backtest import MarginModel  # noqa: E402
-from hedgelab.live import ledger_from_decisions  # noqa: E402
+from hedgelab.live import LedgerDataMissing, ledger_from_decisions  # noqa: E402
 
 st.set_page_config(page_title="AI 선물 헤지 모의운영", layout="wide")
 st.title("AI 선물 헤지 모의운영 대시보드")
@@ -45,8 +45,12 @@ orders = pd.DataFrame(read_jsonl(os.path.join(root, ep_id, "orders.jsonl")))
 decisions = {d["date"]: d for d in decisions_list}
 year, month = map(int, ep_id.split("-"))
 
-ledger, marked = ledger_from_decisions(data_root, year, month, decisions)
-last = decisions_list[-1]
+try:
+    ledger, marked = ledger_from_decisions(data_root, year, month, decisions)
+except LedgerDataMissing as e:
+    st.error(f"장부를 계산할 수 없습니다: {e}")    # 2026-10-21 검수: KeyError 대신 원인과 해결 명령을 보여 준다
+    st.stop()
+last = decisions[sorted(decisions)[-1]]
 n_reg, h = last["final"]
 equity0 = 50_000_000
 start_equity = equity0
@@ -87,10 +91,15 @@ log = pd.DataFrame(decisions_list)
 cols = [c for c in ["date", "time", "source", "current", "action", "target", "final", "masked",
                     "risk_adjusted", "blocked", "equity"] if c in log]
 st.dataframe(log[cols].iloc[::-1], use_container_width=True, hide_index=True)
-n_live = int((log.source != "backfill").sum())
+n_live = int(log.source.isin(["live", "replay"]).sum())
+n_missed = int((log.source == "missed").sum())
+n_backfill = int((log.source == "backfill").sum())
 n_block = int(log.get("blocked", pd.Series(dtype=object)).notna().sum())
 n_adj = int(log.get("risk_adjusted", pd.Series(dtype=object)).fillna(False).astype(bool).sum())
-st.caption(f"실시간·재생 결정 {n_live}회 · 백필 {len(log) - n_live}회 · 차단 {n_block}회 · 위험엔진 조정 {n_adj}회")
+st.caption(f"실시간·재생 결정 {n_live}회 · 백필(운영 시작 전) {n_backfill}회 · 운영 누락일 {n_missed}회 · "
+           f"차단 {n_block}회 · 위험엔진 조정 {n_adj}회")
+if n_missed:
+    st.warning(f"운영이 빠진 날이 {n_missed}일 있습니다. 그날은 주문 없이 직전 포지션을 유지한 것으로 처리했습니다.")
 
 st.subheader("가상 주문")
 if orders.empty:

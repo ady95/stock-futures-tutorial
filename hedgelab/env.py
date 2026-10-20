@@ -138,16 +138,25 @@ class CalendarSpreadEnv(gym.Env):
         mask = np.array([self.risk.allowed(*self.to_target(a), **args) for a in range(self.action_space.n)])
         return mask if mask.any() else np.ones(self.action_space.n, dtype=bool)
 
-    def step(self, action):
+    def step(self, action, forced=None):
+        """forced=(정규, 미니) 를 주면 그 포지션을 그대로 실행한다 (9장: 이미 확정된 운영 기록 재생용).
+
+        이때 위험관리 엔진은 포지션을 고치지 않고 손실 한도 상태만 갱신한다.
+        """
         cfg = self.reward_cfg
         before = self.sim.marked_equity
         old_reg, old_h = self.sim.n_reg, self.sim.h
-        target_reg, target_h = self.to_target(action)
         adjusted = False
-        if self.risk:                       # 위험관리 엔진이 정책보다 우선한다
-            fixed = self.risk.adjust(target_reg, target_h, date=self.ep.index[self.sim.t], **self._risk_args())
-            adjusted = fixed != (target_reg, target_h)
-            target_reg, target_h = fixed
+        if forced is not None:
+            target_reg, target_h = forced
+            if self.risk:
+                self.risk.observe(self.sim.marked_equity, self.start_equity, self.equity0)
+        else:
+            target_reg, target_h = self.to_target(action)
+            if self.risk:                   # 위험관리 엔진이 정책보다 우선한다
+                fixed = self.risk.adjust(target_reg, target_h, date=self.ep.index[self.sim.t], **self._risk_args())
+                adjusted = fixed != (target_reg, target_h)
+                target_reg, target_h = fixed
         self.sim.act(target_reg, target_h)
         after = self.sim.equity if self.sim.done else self.sim.marked_equity
 

@@ -3,11 +3,12 @@
 정책(PPO 또는 규칙)이 낸 목표 포지션을 실행 전에 검사하고, 규칙을 어기면 고친다.
 학습 모델의 판단보다 이 규칙이 항상 우선한다.
 
-규칙 (숫자는 교육용 가정)
+규칙 (숫자는 교육용 가정) — 2 → 1 순서로 둘 다 적용한다
   1. 증거금 한도: 필요 증거금 / 순자산 > max_margin_use 이면 헤지를 늘려(미니 매도 추가) 한도 안으로.
      그래도 넘으면 전체 청산
   2. 에피소드 손실 한도: 에피소드 시작 대비 손실이 stop_loss(시작 자본 대비 비율)를 넘으면
      남은 기간은 완전 헤지(R1) 또는 전체 청산(R2)만 허용
+손실 한도는 '더 거래하지 않는 기준'이지 손실 상한의 보장이 아니다. 하루 사이 큰 변동은 막지 못한다.
 """
 from dataclasses import dataclass, field
 
@@ -31,10 +32,19 @@ class RiskEngine:
         adj = self.adjust(target_reg, target_h, equity, start_equity, equity0, reg_price, margin, record=False)
         return adj == (target_reg, target_h)
 
+    def observe(self, equity, start_equity, equity0):
+        """포지션은 고치지 않고 손실 한도 상태만 갱신한다 (기록된 결정을 다시 재생할 때, 9장)."""
+        if (start_equity - equity) > self.stop_loss * equity0:
+            self.stopped = True
+
     def adjust(self, target_reg, target_h, equity, start_equity, equity0, reg_price, margin,
                date=None, record=True):
-        """규칙에 맞게 고친 (정규, 미니)를 돌려준다. 고쳤으면 log 에 남긴다."""
-        reason = None
+        """규칙에 맞게 고친 (정규, 미니)를 돌려준다. 고쳤으면 log 에 남긴다.
+
+        두 규칙은 순서대로 모두 적용한다. 손실 한도로 목표를 바꾼 뒤에도 증거금 한도를 다시 검사한다
+        (2026-10-21 검수: 손실 한도 처리 뒤 증거금 검사를 건너뛰던 문제 수정).
+        """
+        reasons = []
         reg, h = target_reg, target_h
 
         # 규칙 2: 손실 한도 (한 번 걸리면 에피소드 끝까지 유지)
@@ -43,18 +53,27 @@ class RiskEngine:
                 self.stopped = True
             safe = (0, 0) if self.flatten_on_stop else (1 if reg else 0, 5 if reg else 0)
             if (reg, h) != safe:
-                reg, h, reason = safe[0], safe[1], "손실 한도"
+                reg, h = safe
+                reasons.append("손실 한도")
 
-        # 규칙 1: 증거금 한도
-        if reason is None and margin.required(reg, h, reg_price) > self.max_margin_use * equity:
-            while h < 5 and margin.required(reg, h, reg_price) > self.max_margin_use * equity:
+        # 규칙 1: 증거금 한도 — 손실 한도 처리 여부와 관계없이 항상 검사
+        def over(r, m):
+            need = margin.required(r, m, reg_price)
+            return need > 0 and need > self.max_margin_use * equity   # 무포지션(필요 0)은 순자산이 음수여도 허용
+
+        if over(reg, h):
+            while reg and h < 5 and over(reg, h):
                 h += 1
-            if margin.required(reg, h, reg_price) > self.max_margin_use * equity:
+            if over(reg, h):
                 reg, h = 0, 0
-            reason = "증거금 한도"
+            reasons.append("증거금 한도")
 
-        if record and reason:
-            self.log.append({"date": date, "target": (target_reg, target_h), "adjusted": (reg, h), "reason": reason})
+        # 불변조건: 반환하는 포지션은 증거금 한도를 넘지 않는다 (무포지션은 필요 증거금 0)
+        assert not over(reg, h), "위험관리 엔진이 증거금 한도를 넘는 포지션을 반환하려 했습니다"
+
+        if record and reasons:
+            self.log.append({"date": date, "target": (target_reg, target_h), "adjusted": (reg, h),
+                             "reason": " + ".join(reasons)})
         return reg, h
 
 
