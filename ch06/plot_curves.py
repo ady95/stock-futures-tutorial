@@ -34,7 +34,7 @@ for name in names:
             for split in ("train", "test")}
     print(f"기준선 보상 합 평균: {base}")
     files = sorted(glob.glob(f"results/{name}_seed*_curve.csv"))
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
+    fig, axes = plt.subplots(2, 1, figsize=(8, 8), sharex=True, sharey=True)   # 세로 배치: 책(A4) 폭에서도 글자가 읽히게
     for f in files:
         df = pd.read_csv(f)
         seed = f.split("_seed")[1].split("_")[0]
@@ -47,10 +47,10 @@ for name in names:
         ax.axhline(base[split]["B1"], color="black", ls=":", lw=1.2, label="B1 고정 헤지")
         ax.axhline(base[split]["B2"], color="black", ls="--", lw=1.2, label="B2 ATR 규칙형")
         ax.set_title(title)
-        ax.set_xlabel("학습 스텝 (천)")
+        ax.set_ylabel("에피소드 보상 합 평균")
         ax.grid(alpha=0.3)
-    axes[0].set_ylabel("에피소드 보상 합 평균")
-    axes[1].legend()
+    axes[1].set_xlabel("학습 스텝 (천)")
+    axes[1].legend(ncol=2)
     fig.suptitle(f"학습 곡선 — {name}")
     fig.tight_layout()
     out = f"results/ch06_curves_{name}.png"

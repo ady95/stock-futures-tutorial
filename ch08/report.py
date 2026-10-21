@@ -68,7 +68,7 @@ if best_steps:
           f"분포 {pd.Series(best_steps).value_counts().sort_index().to_dict()}")
 
 plt = plotting.setup()
-fig, axes = plt.subplots(1, 2, figsize=(12, 4.8))
+fig, axes = plt.subplots(2, 1, figsize=(9, 9.5))   # 세로 배치: 책(A4) 폭에서도 글자가 읽히게
 ref = recs["B0 무거래"]
 years = ref["episode"].str[:4].to_numpy()
 ticks = [i for i in range(len(ref)) if i == 0 or years[i] != years[i - 1]]
@@ -81,10 +81,10 @@ for ax, group, title in zip(axes, ("wf_r2_risk", "wf_r1"), ("R2 + 위험엔진 v
     ax.set_xticks(ticks)
     ax.set_xticklabels(years[ticks])
     ax.set_title(title)
+    ax.set_ylabel("누적 손익 (백만 원)")
     ax.grid(alpha=0.3)
-    ax.legend(fontsize=8)
-axes[0].set_ylabel("누적 손익 (백만 원)")
-fig.suptitle("워크포워드 평가 구간 누적 손익 — 실제 데이터 (에피소드 기준 연도 2020~2026)")
+    ax.legend(fontsize=9, ncol=2)
+fig.suptitle("워크포워드 평가 구간 누적 손익 — 실제 데이터\n(에피소드 기준 연도 2020~2026)")
 fig.tight_layout()
 os.makedirs("results", exist_ok=True)
 fig.savefig("results/ch08_equity.png", dpi=120)
