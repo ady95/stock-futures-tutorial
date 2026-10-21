@@ -1,5 +1,9 @@
 # stock-futures-tutorial
 
+<p align="center">
+  <a href="https://wikidocs.net/book/21732"><img src="docs/book-cover.png" alt="강화학습 기반 선물 자동매매 따라하기 표지" width="300"></a>
+</p>
+
 위키독스 책 **「강화학습 기반 선물 자동매매 따라하기 — PPO로 구현하는 코스피200 선물 동적 헤지와 위험관리」**의 예제 코드 저장소입니다.
 
 - 책: https://wikidocs.net/book/21732
